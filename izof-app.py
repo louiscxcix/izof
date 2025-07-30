@@ -32,11 +32,12 @@ def parse_data(text_data):
     for line in lines:
         if line.strip().startswith('#') or not line.strip():
             continue
-        match = re.match(r'^\s*(\S+)\s+(\d+)\s+(\d+)\s*$', line.strip())
+        # [수정된 부분] 항목 이름에 띄어쓰기가 있어도 인식하도록 정규표현식 변경
+        match = re.match(r'^\s*(.+?)\s+(\d+)\s+(\d+)\s*$', line.strip())
         if match:
             item, required, current = match.groups()
             data.append({
-                'item': item,
+                'item': item.strip(), # 항목 앞뒤 공백 제거
                 'required': int(required),
                 'current': int(current)
             })
@@ -118,10 +119,10 @@ st.subheader("1. 검사 결과 입력")
 placeholder_text = """# 아래 형식에 맞춰 데이터를 입력하세요.
 # (항목 필요점수 현재점수)
 # 예시 (골프):
-드라이버정확도 8 6
-퍼팅자신감 9 7
-코스매니지먼트 8 8
-긴장조절 7 5
+드라이버 정확도 8 6
+퍼팅 자신감 9 7
+코스 매니지먼트 8 8
+긴장 조절 7 5
 승부욕 8 9
 """
 user_input = st.text_area(
