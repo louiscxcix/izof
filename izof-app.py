@@ -12,7 +12,6 @@ st.set_page_config(
 )
 
 # --- 상태 초기화 ---
-# session_state에 필요한 키들이 없으면 초기화합니다.
 if 'analysis_result' not in st.session_state:
     st.session_state.analysis_result = None
 if 'chart_data' not in st.session_state:
@@ -45,7 +44,7 @@ def parse_data(text_data):
 
 def generate_analysis_prompt(parsed_data):
     """
-    Gemini API에 전달할 프롬프트를 생성합니다. (개선된 버전)
+    Gemini API에 전달할 프롬프트를 생성합니다.
     """
     data_str = "\n".join([f"- {d['item']}: 필요 점수 {d['required']}, 현재 점수 {d['current']}" for d in parsed_data])
     
@@ -105,20 +104,16 @@ st.title("🧠 IZOF 멘탈 분석기 with Gemini")
 st.markdown("> IZOF(Individual Zones of Optimal Functioning) 이론을 바탕으로 당신의 멘탈 상태를 분석하고 맞춤형 훈련법을 제안합니다.")
 st.divider()
 
-# --- 사이드바: API 키 입력 및 설명 ---
+# --- 사이드바: API 키 입력란 제거됨 ---
 with st.sidebar:
-    st.header("설정")
-    api_key = st.text_input("Google Gemini API 키를 입력하세요.", type="password", help="API 키는 [Google AI Studio](https://aistudio.google.com/app/apikey)에서 발급받을 수 있습니다.")
-    st.divider()
     st.header("사용 방법")
     st.markdown("""
-    1.  **API 키**를 입력하세요.
-    2.  **'검사 결과 입력'** 칸에 자신의 IZOF 검사 결과를 붙여넣으세요.
-    3.  **'분석하기'** 버튼을 클릭하여 AI의 텍스트 분석을 확인하세요.
-    4.  **'상세 리포트 보기'** 버튼을 눌러 점수 비교 그래프를 확인하세요.
+    1.  **'검사 결과 입력'** 칸에 자신의 IZOF 검사 결과를 붙여넣으세요.
+    2.  **'분석하기'** 버튼을 클릭하여 AI의 텍스트 분석을 확인하세요.
+    3.  **'상세 리포트 보기'** 버튼을 눌러 점수 비교 그래프를 확인하세요.
     """)
 
-# --- 메인 화면: 데이터 입력 및 결과 출력 (세로 정렬) ---
+# --- 메인 화면 ---
 st.subheader("1. 검사 결과 입력")
 placeholder_text = """# 아래 형식에 맞춰 데이터를 입력하세요.
 # (항목 필요점수 현재점수)
@@ -137,30 +132,30 @@ user_input = st.text_area(
 
 # "분석하기" 버튼
 if st.button("🚀 분석하기", type="primary", use_container_width=True):
-    if not api_key:
-        st.error("❗️ 사이드바에 Gemini API 키를 먼저 입력해주세요.")
-    elif not user_input:
+    # API 키가 Secrets에 설정되어 있는지 확인
+    if "GEMINI_API_KEY" not in st.secrets:
+        st.error("오류: 앱 관리자가 API 키를 설정하지 않았습니다.")
+        st.stop() # API 키가 없으면 앱 중지
+    
+    if not user_input:
         st.error("❗️ 분석할 데이터를 입력해주세요.")
     else:
-        # 이전 결과 초기화
         st.session_state.analysis_result = None
         st.session_state.chart_data = None
         st.session_state.show_report = False
         
         with st.spinner("AI가 당신의 멘탈 상태를 분석 중입니다..."):
             try:
-                # 1. 데이터 파싱
                 parsed_data = parse_data(user_input)
                 if not parsed_data:
                     st.error("❗️ 입력 데이터 형식을 확인해주세요. '항목 점수 점수' 형식으로 각 줄에 입력해야 합니다.")
                 else:
-                    # 2. Gemini API 호출
-                    genai.configure(api_key=api_key)
+                    # Secrets에서 API 키를 가져와 설정
+                    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                     model = genai.GenerativeModel('gemini-1.5-flash')
                     prompt = generate_analysis_prompt(parsed_data)
                     response = model.generate_content(prompt)
                     
-                    # 3. 결과 저장 (세션 상태 활용)
                     st.session_state.analysis_result = response.text
                     st.session_state.chart_data = pd.DataFrame(parsed_data)
 
@@ -173,11 +168,9 @@ if st.session_state.analysis_result:
     st.subheader("2. AI 분석 결과")
     st.markdown(st.session_state.analysis_result)
     
-    # "상세 리포트 보기" 버튼
     if st.button("📊 상세 리포트 보기", use_container_width=True):
-        st.session_state.show_report = not st.session_state.show_report # 토글 기능
+        st.session_state.show_report = not st.session_state.show_report
 
-# 상세 리포트 (그래프) 출력
 if st.session_state.show_report and st.session_state.chart_data is not None:
     st.subheader("3. 상세 리포트: 점수 비교 그래프")
     fig = create_bar_chart(st.session_state.chart_data)
