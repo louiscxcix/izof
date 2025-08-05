@@ -1,10 +1,12 @@
-import streamlit as st
-import google.generativeai as genai
-import plotly.express as px
-import pandas as pd
+import os
 import re
 from datetime import datetime
+
+import google.generativeai as genai
+import pandas as pd
+import plotly.express as px
 import pytz
+import streamlit as st
 
 # --- 페이지 기본 설정 ---
 st.set_page_config(
@@ -14,46 +16,55 @@ st.set_page_config(
 )
 
 # --- 상태 초기화 ---
-if 'summary_report' not in st.session_state:
+if "summary_report" not in st.session_state:
     st.session_state.summary_report = None
-if 'detailed_report' not in st.session_state:
+if "detailed_report" not in st.session_state:
     st.session_state.detailed_report = None
-if 'chart_data' not in st.session_state:
+if "chart_data" not in st.session_state:
     st.session_state.chart_data = None
-if 'show_report' not in st.session_state:
+if "show_report" not in st.session_state:
     st.session_state.show_report = False
-if 'analysis_date' not in st.session_state:
+if "analysis_date" not in st.session_state:
     st.session_state.analysis_date = None
 
 
 # --- 핵심 기능 함수 ---
+
 
 def parse_data(text_data):
     """
     사용자가 입력한 텍스트 데이터를 파싱하여
     항목, 필요 점수, 현재 점수로 분리합니다.
     """
-    lines = text_data.strip().split('\n')
+    lines = text_data.strip().split("\n")
     data = []
     for line in lines:
-        if line.strip().startswith('#') or not line.strip():
+        if line.strip().startswith("#") or not line.strip():
             continue
-        match = re.match(r'^\s*(.+?)\s+(\d+)\s+(\d+)\s*$', line.strip())
+        match = re.match(r"^\s*(.+?)\s+(\d+)\s+(\d+)\s*$", line.strip())
         if match:
             item, required, current = match.groups()
-            data.append({
-                '항목': item.strip(),
-                '필요 점수': int(required),
-                '현재 점수': int(current)
-            })
+            data.append(
+                {
+                    "항목": item.strip(),
+                    "필요 점수": int(required),
+                    "현재 점수": int(current),
+                }
+            )
     return data
+
 
 def generate_analysis_prompt(parsed_data):
     """
     [개선된 버전] Gemini API에 전달할 프롬프트를 생성합니다.
     """
-    data_str = "\n".join([f"- {d['항목']}: 필요 점수 {d['필요 점수']}, 현재 점수 {d['현재 점수']}" for d in parsed_data])
-    
+    data_str = "\n".join(
+        [
+            f"- {d['항목']}: 필요 점수 {d['필요 점수']}, 현재 점수 {d['현재 점수']}"
+            for d in parsed_data
+        ]
+    )
+
     prompt = f"""
 너는 개인별 최적수행상태(IZOF) 이론에 기반한 수행 프로파일링 전문가다. 너의 임무는 선수의 심리, 기술, 체력 데이터를 종합적으로 분석하고, 그 결과를 바탕으로 전문가 수준의 보고서를 [요약 보고서]와 [상세 보고서] 두 부분으로 나누어 작성하는 것이다.
 
@@ -91,35 +102,50 @@ def generate_analysis_prompt(parsed_data):
 """
     return prompt
 
+
 def create_bar_chart(df):
     """
     분석 데이터를 바탕으로 비교 막대 그래프를 생성합니다.
     """
-    df_melted = pd.melt(df, id_vars=['항목'], value_vars=['필요 점수', '현재 점수'],
-                        var_name='점수 유형', value_name='점수')
+    df_melted = pd.melt(
+        df,
+        id_vars=["항목"],
+        value_vars=["필요 점수", "현재 점수"],
+        var_name="점수 유형",
+        value_name="점수",
+    )
 
-    fig = px.bar(df_melted, 
-                 x='항목', 
-                 y='점수', 
-                 color='점수 유형',
-                 barmode='group',
-                 title='<b>훈련 요구량 상위 항목 비교</b>',
-                 labels={'항목': '<b>평가 항목</b>', '점수': '<b>점수</b>', '점수 유형': '<b>점수 유형</b>'},
-                 text_auto=True,
-                 color_discrete_map={'필요 점수': '#636EFA', '현재 점수': '#FFA15A'})
-    
+    fig = px.bar(
+        df_melted,
+        x="항목",
+        y="점수",
+        color="점수 유형",
+        barmode="group",
+        title="<b>훈련 요구량 상위 항목 비교</b>",
+        labels={
+            "항목": "<b>평가 항목</b>",
+            "점수": "<b>점수</b>",
+            "점수 유형": "<b>점수 유형</b>",
+        },
+        text_auto=True,
+        color_discrete_map={"필요 점수": "#636EFA", "현재 점수": "#FFA15A"},
+    )
+
     fig.update_layout(
         font=dict(family="Arial, sans-serif", size=12),
-        legend_title_text='',
-        yaxis=dict(range=[0, 11])
+        legend_title_text="",
+        yaxis=dict(range=[0, 11]),
     )
-    fig.update_traces(textposition='outside')
+    fig.update_traces(textposition="outside")
     return fig
+
 
 # --- Streamlit UI 구성 ---
 
 st.title("🧠 IZOF 멘탈 분석기 with Gemini")
-st.markdown("> IZOF(Individual Zones of Optimal Functioning) 이론을 바탕으로 당신의 멘탈 상태를 분석하고 맞춤형 훈련법을 제안합니다.")
+st.markdown(
+    "> IZOF(Individual Zones of Optimal Functioning) 이론을 바탕으로 당신의 멘탈 상태를 분석하고 맞춤형 훈련법을 제안합니다."
+)
 st.divider()
 
 # --- 사이드바 ---
@@ -150,17 +176,15 @@ placeholder_text = """# 기술, 체력, 심리 영역의 검사 결과를 모두
 승부욕 8 9
 """
 user_input = st.text_area(
-    "IZOF 검사 결과를 여기에 붙여넣으세요.", 
-    height=300, 
-    placeholder=placeholder_text
+    "IZOF 검사 결과를 여기에 붙여넣으세요.", height=300, placeholder=placeholder_text
 )
 
 # "분석하기" 버튼
 if st.button("🚀 분석하기", type="primary", use_container_width=True):
-    if "GEMINI_API_KEY" not in st.secrets:
+    if "GEMINI_API_KEY" not in os.environ:
         st.error("오류: 앱 관리자가 API 키를 설정하지 않았습니다.")
         st.stop()
-    
+
     if not user_input:
         st.error("❗️ 분석할 데이터를 입력해주세요.")
     else:
@@ -169,36 +193,40 @@ if st.button("🚀 분석하기", type="primary", use_container_width=True):
         st.session_state.detailed_report = None
         st.session_state.chart_data = None
         st.session_state.show_report = False
-        
+
         with st.spinner("AI가 당신의 멘탈 상태를 분석 중입니다..."):
             try:
                 # 데이터 파싱 및 오늘 날짜 저장
                 parsed_data = parse_data(user_input)
-                kst = pytz.timezone('Asia/Seoul')
-                st.session_state.analysis_date = datetime.now(kst).strftime('%Y-%m-%d')
-                
+                kst = pytz.timezone("Asia/Seoul")
+                st.session_state.analysis_date = datetime.now(kst).strftime("%Y-%m-%d")
+
                 if not parsed_data:
-                    st.error("❗️ 입력 데이터 형식을 확인해주세요. '항목 점수 점수' 형식으로 각 줄에 입력해야 합니다.")
+                    st.error(
+                        "❗️ 입력 데이터 형식을 확인해주세요. '항목 점수 점수' 형식으로 각 줄에 입력해야 합니다."
+                    )
                 else:
                     # Gemini 분석 실행
-                    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+                    model = genai.GenerativeModel("gemini-1.5-flash")
                     prompt = generate_analysis_prompt(parsed_data)
                     response = model.generate_content(prompt)
-                    
+
                     response_text = response.text
                     if "### [상세 보고서]" in response_text:
                         parts = response_text.split("### [상세 보고서]")
                         summary = parts[0].replace("### [요약 보고서]", "").strip()
                         detailed = "### [상세 보고서]\n" + parts[1].strip()
                     else:
-                        summary = "요약 보고서를 생성하지 못했습니다. 전체 결과를 확인하세요."
+                        summary = (
+                            "요약 보고서를 생성하지 못했습니다. 전체 결과를 확인하세요."
+                        )
                         detailed = response_text
 
                     # 그래프용 데이터 필터링
                     df = pd.DataFrame(parsed_data)
-                    df['훈련 요구량'] = (df['필요 점수'] - df['현재 점수']).abs()
-                    chart_df = df.nlargest(5, '훈련 요구량')
+                    df["훈련 요구량"] = (df["필요 점수"] - df["현재 점수"]).abs()
+                    chart_df = df.nlargest(5, "훈련 요구량")
 
                     # 결과 저장
                     st.session_state.summary_report = summary
@@ -212,13 +240,13 @@ if st.button("🚀 분석하기", type="primary", use_container_width=True):
 if st.session_state.summary_report:
     st.divider()
     st.subheader(f"해당 선수 AI 요약 분석 ({st.session_state.analysis_date})")
-    
+
     if st.session_state.chart_data is not None:
         fig = create_bar_chart(st.session_state.chart_data)
         st.plotly_chart(fig, use_container_width=True)
 
     st.markdown(st.session_state.summary_report)
-    
+
     if st.button("📊 상세 리포트 보기", use_container_width=True):
         st.session_state.show_report = not st.session_state.show_report
 
